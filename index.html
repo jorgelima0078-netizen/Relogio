@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050505">
+<title>Noctis — Desk Clock</title>
+<style>
+:root{color-scheme:dark;--bg:#050505;--panel:#121212;--panel2:#191919;--ink:#f1f0e9;--muted:#85858d;--accent:#d9ad65;--line:#292929;--wall-opacity:.38}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{overflow:hidden}
+button,input,select{font:inherit}
+button{cursor:pointer}
+#app{position:relative;isolation:isolate;min-height:100%;height:100dvh;overflow:hidden;background:var(--bg)}
+#wallpaper{position:absolute;inset:0;z-index:-3;background:radial-gradient(ellipse at 50% 60%,#111 0%,#050505 65%);overflow:hidden}
+#wallpaper img,#wallpaper video{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.wallpaper-slide{position:absolute;inset:0;opacity:0;transition:opacity 1.8s ease-in-out;will-change:opacity}
+.wallpaper-slide.active{opacity:1}
+.wallpaper-slide img{width:100%;height:100%;object-fit:cover}
+.gallery-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.gallery-item{display:flex;align-items:center;gap:10px;padding:8px;background:#181818;border:1px solid #303030;border-radius:12px;min-width:0}
+.gallery-thumb{width:58px;height:48px;object-fit:cover;border-radius:7px;background:#252525;flex-shrink:0}
+.gallery-name{flex:1;min-width:0;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ddd}
+.gallery-actions{display:flex;gap:4px;flex-shrink:0}
+.gallery-actions button{width:30px;height:30px;border-radius:8px;border:1px solid #383838;background:#222;color:#eee;font-size:14px;padding:0}
+.gallery-actions button:disabled{opacity:.25;cursor:default}
+.gallery-empty{padding:15px;border:1px dashed #363636;border-radius:12px;color:#85858d;font-size:12px;text-align:center;margin-top:12px}
+.gallery-count{font-size:11px;color:var(--muted);margin-top:8px}
+#wallpaper:after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.54),rgba(0,0,0,var(--wall-opacity)) 42%,rgba(0,0,0,.74))}
+.ambient{position:absolute;z-index:-2;inset:0;pointer-events:none;overflow:hidden;opacity:.7}
+.wave{position:absolute;width:150vw;height:34vh;left:-25vw;bottom:8%;border-top:1px solid #b18a50;opacity:.32;border-radius:50%;transform:rotate(-4deg);animation:drift 16s ease-in-out infinite alternate}
+.wave.two{bottom:-4%;left:-35vw;opacity:.13;transform:rotate(4deg);animation-duration:23s;animation-direction:alternate-reverse}
+@keyframes drift{from{translate:-1% 0;rotate:-1deg}to{translate:2% -12px;rotate:1deg}}
+.topbar{position:absolute;top:max(22px,env(safe-area-inset-top));left:clamp(22px,5vw,58px);right:clamp(22px,5vw,58px);display:flex;align-items:center;justify-content:space-between;z-index:3}
+.brand{font-size:12px;letter-spacing:.28em;font-weight:750;color:#a2a2aa;text-transform:uppercase;display:flex;align-items:center;gap:13px}
+.brand-dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 18px color-mix(in srgb,var(--accent) 55%,transparent)}
+.icon-btn{width:54px;height:54px;border:1px solid #ffffff18;background:#111a;color:var(--ink);border-radius:50%;display:grid;place-items:center;font-size:22px;backdrop-filter:blur(12px)}
+.icon-btn:active,.btn:active,.preset:active{transform:scale(.98)}
+.center{position:absolute;z-index:2;left:0;right:0;top:50%;transform:translateY(-50%);display:flex;align-items:center;flex-direction:column;padding:0 14px;text-align:center}
+.tagline{font-size:clamp(10px,2.6vw,14px);font-weight:750;letter-spacing:.28em;text-transform:uppercase;color:var(--accent);margin-bottom:clamp(36px,7vh,68px)}
+.clock{display:flex;align-items:center;justify-content:center;gap:clamp(8px,2.4vw,22px);width:100%;font-variant-numeric:tabular-nums}
+.pair{display:flex;gap:clamp(5px,1.4vw,14px)}
+.flip-card{position:relative;width:clamp(68px,21.5vw,154px);height:clamp(104px,32vw,220px);border-radius:clamp(12px,2.5vw,22px);background:linear-gradient(180deg,#151515,#101010);box-shadow:0 12px 30px #0008,inset 0 1px #ffffff0b;overflow:hidden;perspective:700px}
+.digit{position:absolute;inset:0;display:flex;justify-content:center;align-items:center;font-size:clamp(96px,30vw,220px);font-weight:720;line-height:1;letter-spacing:-.075em;color:#c9c9c9;padding-right:.07em}
+.flip-card:before{content:"";position:absolute;z-index:3;left:0;right:0;top:50%;height:2px;background:#050505;box-shadow:0 1px #ffffff0a}
+.flip-card:after{content:"";position:absolute;z-index:2;left:0;right:0;top:calc(50% - 1px);height:1px;background:#ffffff08}
+.flip-top,.flip-bottom{position:absolute;left:0;right:0;height:50%;overflow:hidden;backface-visibility:hidden;z-index:4;pointer-events:none}
+.flip-top{top:0;transform-origin:bottom;background:linear-gradient(#181818,#151515)}
+.flip-bottom{bottom:0;transform-origin:top;background:linear-gradient(#111,#0d0d0d)}
+.flip-top .digit,.flip-bottom .digit{height:200%;position:absolute;left:0;right:0}
+.flip-top .digit{top:0;align-items:center}
+.flip-bottom .digit{bottom:0;align-items:center}
+.flip-top.turn{animation:topFlip .28s ease-in forwards}
+.flip-bottom.turn{animation:bottomFlip .28s .25s ease-out both}
+@keyframes topFlip{0%{transform:rotateX(0);filter:brightness(1)}100%{transform:rotateX(-90deg);filter:brightness(.65)}}
+@keyframes bottomFlip{0%{transform:rotateX(90deg);filter:brightness(.65)}100%{transform:rotateX(0);filter:brightness(1)}}
+.colon{font-size:clamp(48px,14vw,96px);font-weight:650;color:var(--accent);line-height:1;transform:translateY(-.03em);animation:colonPulse 2s ease-in-out infinite}
+@keyframes colonPulse{0%,100%{opacity:1}50%{opacity:.48}}
+.date{margin-top:clamp(32px,6vh,58px);font-size:clamp(10px,2.8vw,14px);font-weight:700;letter-spacing:.19em;color:#8d8d95;text-transform:uppercase}
+.bottom-status{z-index:3;position:absolute;bottom:max(28px,env(safe-area-inset-bottom));left:clamp(22px,5vw,58px);right:clamp(22px,5vw,58px);display:flex;justify-content:space-between;gap:12px;align-items:center;color:#777780;font-size:11px;letter-spacing:.15em;text-transform:uppercase}
+.status{display:flex;align-items:center;gap:10px}.status-dot{width:7px;height:7px;border-radius:50%;background:#73d5b0;box-shadow:0 0 12px #73d5b066}
+.status-right{background:none;border:0;color:#777780;letter-spacing:inherit;text-transform:inherit;font-size:inherit;padding:8px 0}
+#settingsBackdrop{position:fixed;inset:0;z-index:10;background:#0009;backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center}
+#settingsBackdrop.open{display:flex}
+.sheet{width:min(680px,100%);max-height:88dvh;overflow:auto;background:#101010;border:1px solid #ffffff16;border-bottom:0;border-radius:26px 26px 0 0;padding:20px 20px max(26px,env(safe-area-inset-bottom));box-shadow:0 -18px 70px #0009}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.sheet-title{font-size:18px;font-weight:700}.close-btn{width:38px;height:38px;border:1px solid var(--line);background:#191919;color:white;border-radius:50%;font-size:20px}
+.section{padding:17px 0;border-top:1px solid var(--line)}
+.section-title{font-size:13px;font-weight:750;letter-spacing:.08em;text-transform:uppercase;margin-bottom:7px}
+.section-desc,.note{font-size:12px;color:var(--muted);line-height:1.5}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.btn{border:1px solid #353535;border-radius:13px;background:#1a1a1a;color:#f1f0e9;padding:13px 12px;text-align:center;font-size:13px;font-weight:650}
+.btn.primary{background:var(--accent);color:#17120a;border-color:var(--accent)}
+.btn.full{width:100%;margin-top:10px}
+#fileInput{display:none}
+.file-label{display:flex;align-items:center;justify-content:center;gap:9px;min-height:52px;width:100%;background:#1c1b19;border:1px dashed #796343;border-radius:14px;color:#f2d6a7;font-size:14px;font-weight:700;margin-top:13px}
+.preset-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-top:13px}
+.preset{border:1px solid #333;border-radius:12px;overflow:hidden;background:#171717;color:#ddd;text-align:left;padding:0}
+.swatch{height:65px;display:block}
+.swatch.ocean{background:radial-gradient(ellipse at 65% 70%,#075b84,transparent 55%),linear-gradient(145deg,#020712,#001d36)}
+.swatch.aurora{background:radial-gradient(ellipse at 20% 80%,#1f7c73,transparent 55%),radial-gradient(ellipse at 75% 55%,#553a82,transparent 50%),#071019}
+.swatch.amber{background:radial-gradient(ellipse at 55% 80%,#8d4b13,transparent 50%),linear-gradient(150deg,#090706,#251305)}
+.swatch.mono{background:linear-gradient(145deg,#222,#050505)}
+.preset-name{display:block;padding:9px;font-size:11px}
+.options{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chip{border:1px solid #343434;background:#171717;color:#ddd;padding:9px 12px;border-radius:999px;font-size:12px}
+.chip.active{border-color:var(--accent);color:#f4d7a4}
+.setting-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:13px;font-size:13px}
+select{background:#1a1a1a;color:#eee;border:1px solid #383838;border-radius:9px;padding:9px;max-width:55%}
+#toast{position:fixed;z-index:20;bottom:30px;left:50%;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:#252525;color:#fff;padding:12px 16px;border-radius:12px;font-size:13px;transition:.2s;max-width:90vw;text-align:center}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+body.fullscreen .topbar{top:max(12px,env(safe-area-inset-top))}
+body.fullscreen .brand{opacity:.45}
+@media(max-width:380px){.flip-card{width:20.4vw;height:30.5vw}.digit{font-size:28vw}.pair{gap:4px}.clock{gap:6px}.tagline{margin-bottom:36px}.date{margin-top:32px}}
+@media(orientation:landscape){.center{top:52%}.tagline{margin-bottom:3vh}.flip-card{height:min(30vw,40vh);width:min(15vw,22vh)}.digit{font-size:min(28vw,38vh)}.date{margin-top:3vh}.bottom-status{bottom:16px}.wave{bottom:-8%}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}}
+</style>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NOCTIS">
+<meta name="mobile-web-app-capable" content="yes">
+<script>if ('serviceWorker' in navigator) { window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {})); }</script>
+</head>
+<body>
+<div id="app">
+  <div id="wallpaper"></div>
+  <div class="ambient"><div class="wave"></div><div class="wave two"></div></div>
+  <header class="topbar">
+    <div class="brand"><span class="brand-dot"></span> NOCTIS <span style="opacity:.4">/</span> DESK CLOCK</div>
+    <button class="icon-btn" id="openSettings" aria-label="Abrir configurações" title="Configurações">⚙</button>
+  </header>
+  <main class="center">
+    <div class="tagline" id="tagline">O TEMPO, EM EQUILÍBRIO</div>
+    <div class="clock" aria-label="Relógio digital">
+      <div class="pair" id="hours"><div class="flip-card" data-digit="0"><span class="digit">0</span></div><div class="flip-card" data-digit="0"><span class="digit">0</span></div></div>
+      <span class="colon">:</span>
+      <div class="pair" id="minutes"><div class="flip-card" data-digit="0"><span class="digit">0</span></div><div class="flip-card" data-digit="0"><span class="digit">0</span></div></div>
+    </div>
+    <div class="date" id="date">CARREGANDO DATA</div>
+  </main>
+  <footer class="bottom-status">
+    <div class="status"><span class="status-dot"></span><span id="modeLabel">MODO MESA ATIVO</span></div>
+    <button class="status-right" id="footerSettings">TOQUE PARA CONTROLES</button>
+  </footer>
+</div>
+
+<div id="settingsBackdrop" role="dialog" aria-modal="true" aria-label="Configurações do Noctis">
+  <section class="sheet">
+    <div class="sheet-head"><div class="sheet-title">Personalizar Noctis</div><button class="close-btn" id="closeSettings" aria-label="Fechar">×</button></div>
+    <div class="section">
+      <div class="section-title">Papel de parede</div>
+      <div class="section-desc">Escolha uma imagem, GIF animado ou vídeo do seu celular. Esta opção fica aqui, sempre acessível.</div>
+      <label class="file-label" for="fileInput">＋ Adicionar várias imagens ou GIFs</label>
+      <input id="fileInput" type="file" accept="image/*,.gif" multiple>
+      <div class="gallery-count" id="galleryCount">Nenhum papel de parede adicionado</div>
+      <div class="gallery-list" id="galleryList"><div class="gallery-empty">Suas imagens aparecerão aqui. Você poderá reordenar ou remover cada uma.</div></div>
+      <div class="actions">
+        <button class="btn" id="startGallery">Iniciar apresentação</button>
+        <button class="btn" id="clearWallpaper">Limpar galeria</button>
+      </div>
+      <div class="note" style="margin-top:9px">As imagens e GIFs alternam na ordem da lista, com dissolução suave a cada 30 segundos. O relógio permanece à frente do fundo. A galeria é mantida enquanto esta página estiver aberta; ao reabrir o HTML, selecione os arquivos novamente.</div>
+      <div class="section-title" style="margin-top:18px">Fundos de ambiente</div>
+      <div class="preset-grid">
+        <button class="preset" data-preset="ocean"><span class="swatch ocean"></span><span class="preset-name">Oceano</span></button>
+        <button class="preset" data-preset="aurora"><span class="swatch aurora"></span><span class="preset-name">Aurora</span></button>
+        <button class="preset" data-preset="amber"><span class="swatch amber"></span><span class="preset-name">Âmbar</span></button>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-title">Relógio</div>
+      <div class="setting-row"><span>Formato de hora</span><select id="formatSelect"><option value="24">24 horas</option><option value="12">12 horas</option></select></div>
+      <div class="setting-row"><span>Mostrar segundos</span><button class="chip" id="secondsToggle">Desativado</button></div>
+      <div class="setting-row"><span>Cor dos detalhes</span><select id="accentSelect"><option value="amber">Âmbar</option><option value="blue">Azul</option><option value="white">Branco</option></select></div>
+      <div class="setting-row"><span>Entrar em tela cheia</span><button class="chip" id="fullscreenToggle">Ativar</button></div>
+    </div>
+    <div class="note">Dica: para a aparência mais próxima da referência, mantenha o fundo preto e use o formato 12/24h que preferir. A animação das placas acontece apenas quando o dígito muda.</div>
+  </section>
+</div>
+<div id="toast" role="status"></div>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const app = $('app'), wallpaper = $('wallpaper'), backdrop = $('settingsBackdrop');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let showSeconds = false, format = '24', accent = 'amber', objectUrl = null, wallpaperVideo = null, wallpaperMoving = true;
+  let toastTimer = null, lastSecond = -1;
+  const accents = {amber:'#d9ad65',blue:'#7bc7ff',white:'#f1f0e9'};
+  function toast(message){const el=$('toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2600)}
+  function openSettings(){backdrop.classList.add('open')}
+  function closeSettings(){backdrop.classList.remove('open')}
+  $('openSettings').addEventListener('click',openSettings);
+  $('footerSettings').addEventListener('click',openSettings);
+  $('closeSettings').addEventListener('click',closeSettings);
+  backdrop.addEventListener('click',e=>{if(e.target===backdrop)closeSettings()});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSettings()});
+
+  function flipCard(card, next) {
+    const old = card.dataset.digit;
+    if (old === next) return;
+    card.dataset.digit = next;
+    const current = card.querySelector('.digit');
+    current.textContent = next;
+    if (reducedMotion) return;
+    card.querySelectorAll('.flip-top,.flip-bottom').forEach(n=>n.remove());
+    const top=document.createElement('div');top.className='flip-top';
+    const topDigit=document.createElement('span');topDigit.className='digit';topDigit.textContent=old;
+    top.appendChild(topDigit);
+    const bottom=document.createElement('div');bottom.className='flip-bottom';
+    const bottomDigit=document.createElement('span');bottomDigit.className='digit';bottomDigit.textContent=next;
+    bottom.appendChild(bottomDigit);
+    card.append(top,bottom);
+    // Two-stage split-flap effect, aligned to the card's center seam.
+    requestAnimationFrame(()=>{top.classList.add('turn');bottom.classList.add('turn')});
+    setTimeout(()=>{top.remove();bottom.remove()},650);
+  }
+  function updateClock(){
+    const now=new Date();
+    let hour=now.getHours();
+    if(format==='12')hour=hour%12||12;
+    const hh=String(hour).padStart(2,'0'), mm=String(now.getMinutes()).padStart(2,'0');
+    [...$('hours').querySelectorAll('.flip-card')].forEach((c,i)=>flipCard(c,hh[i]));
+    [...$('minutes').querySelectorAll('.flip-card')].forEach((c,i)=>flipCard(c,mm[i]));
+    const weekday=new Intl.DateTimeFormat('pt-BR',{weekday:'long'}).format(now);
+    const day=new Intl.DateTimeFormat('pt-BR',{day:'2-digit',month:'long'}).format(now);
+    $('date').textContent=`${weekday} · ${day}`.toLocaleUpperCase('pt-BR');
+    $('tagline').textContent=format==='12'?'O TEMPO, EM EQUILÍBRIO':'O TEMPO, EM EQUILÍBRIO';
+    if(showSeconds){
+      let sec=$('seconds');
+      if(!sec){sec=document.createElement('span');sec.id='seconds';sec.style.cssText='font-size:12px;color:var(--muted);align-self:flex-end;margin:0 0 10px 0';document.querySelector('.clock').appendChild(sec)}
+      sec.textContent=String(now.getSeconds()).padStart(2,'0');
+    } else $('seconds')?.remove();
+    lastSecond=now.getSeconds();
+  }
+  $('formatSelect').addEventListener('change',e=>{format=e.target.value;lastSecond=-1;updateClock()});
+  $('secondsToggle').addEventListener('click',()=>{showSeconds=!showSeconds;$('secondsToggle').textContent=showSeconds?'Ativado':'Desativado';updateClock()});
+  $('accentSelect').addEventListener('change',e=>{accent=e.target.value;document.documentElement.style.setProperty('--accent',accents[accent])});
+  $('fullscreenToggle').addEventListener('click',async()=>{
+    try{if(!document.fullscreenElement){await document.documentElement.requestFullscreen();$('fullscreenToggle').textContent='Desativar';document.body.classList.add('fullscreen')}else{await document.exitFullscreen();$('fullscreenToggle').textContent='Ativar';document.body.classList.remove('fullscreen')}}catch{toast('Tela cheia não está disponível neste modo de abertura do Chrome.')}
+  });
+  document.addEventListener('fullscreenchange',()=>{const on=!!document.fullscreenElement;$('fullscreenToggle').textContent=on?'Desativar':'Ativar';document.body.classList.toggle('fullscreen',on)});
+
+  // Multi-image/GIF wallpaper gallery. Object URLs live for this page session.
+  const gallery = [];
+  let galleryIndex = 0, galleryTimer = null, galleryPlaying = false;
+  const galleryList = $('galleryList'), galleryCount = $('galleryCount');
+  function renderGalleryList(){
+    galleryList.replaceChildren();
+    if(!gallery.length){
+      const empty=document.createElement('div');empty.className='gallery-empty';
+      empty.textContent='Suas imagens aparecerão aqui. Você poderá reordenar ou remover cada uma.';
+      galleryList.appendChild(empty);
+      galleryCount.textContent='Nenhum papel de parede adicionado';
+      return;
+    }
+    galleryCount.textContent=`${gallery.length} ${gallery.length===1?'papel de parede':'papéis de parede'} · ordem selecionada`;
+    gallery.forEach((item,index)=>{
+      const row=document.createElement('div');row.className='gallery-item';
+      const thumb=document.createElement('img');thumb.className='gallery-thumb';thumb.src=item.url;thumb.alt='';
+      const name=document.createElement('div');name.className='gallery-name';name.textContent=item.name;name.title=item.name;
+      const actions=document.createElement('div');actions.className='gallery-actions';
+      const up=document.createElement('button');up.type='button';up.textContent='↑';up.title='Mover para cima';up.disabled=index===0;
+      up.addEventListener('click',()=>moveGalleryItem(index,-1));
+      const down=document.createElement('button');down.type='button';down.textContent='↓';down.title='Mover para baixo';down.disabled=index===gallery.length-1;
+      down.addEventListener('click',()=>moveGalleryItem(index,1));
+      const remove=document.createElement('button');remove.type='button';remove.textContent='×';remove.title='Remover imagem';
+      remove.addEventListener('click',()=>removeGalleryItem(index));
+      actions.append(up,down,remove);row.append(thumb,name,actions);galleryList.appendChild(row);
+    });
+  }
+  function stopGalleryTimer(){if(galleryTimer){clearInterval(galleryTimer);galleryTimer=null}}
+  function showGalleryItem(index,animate=true){
+    if(!gallery.length)return;
+    galleryIndex=((index%gallery.length)+gallery.length)%gallery.length;
+    const old=wallpaper.querySelector('.wallpaper-slide.active');
+    if(old)old.classList.remove('active');
+    // Reuse any slide for the selected item only when it is already the current image.
+    const slide=document.createElement('div');slide.className='wallpaper-slide';
+    const image=document.createElement('img');image.src=gallery[galleryIndex].url;image.alt='';
+    slide.appendChild(image);wallpaper.appendChild(slide);
+    requestAnimationFrame(()=>slide.classList.add('active'));
+    if(old)setTimeout(()=>old.remove(),1900);
+    // Limit orphaned inactive slides if the user changes images quickly.
+    [...wallpaper.querySelectorAll('.wallpaper-slide:not(.active)')].forEach((node,i,arr)=>{if(arr.length>1&&i<arr.length-1)node.remove()});
+  }
+  function startGallery(){
+    stopGalleryTimer();
+    if(!gallery.length){toast('Adicione uma ou mais imagens primeiro.');return}
+    galleryPlaying=true;showGalleryItem(galleryIndex);
+    if(gallery.length>1)galleryTimer=setInterval(()=>showGalleryItem(galleryIndex+1),30000);
+    $('startGallery').textContent='Reiniciar apresentação';
+    closeSettings();toast(gallery.length===1?'Papel de parede aplicado.':'Apresentação iniciada · troca a cada 30 segundos.');
+  }
+  function moveGalleryItem(index,delta){
+    const target=index+delta;if(target<0||target>=gallery.length)return;
+    const current=gallery[galleryIndex];
+    [gallery[index],gallery[target]]=[gallery[target],gallery[index]];
+    galleryIndex=gallery.indexOf(current);
+    renderGalleryList();
+    if(galleryPlaying)showGalleryItem(galleryIndex);
+    stopGalleryTimer();if(galleryPlaying&&gallery.length>1)galleryTimer=setInterval(()=>showGalleryItem(galleryIndex+1),30000);
+  }
+  function removeGalleryItem(index){
+    const removed=gallery.splice(index,1)[0];
+    if(removed)URL.revokeObjectURL(removed.url);
+    if(!gallery.length){stopGalleryTimer();galleryPlaying=false;wallpaper.replaceChildren();$('startGallery').textContent='Iniciar apresentação';}
+    else{
+      if(index<galleryIndex)galleryIndex--;
+      if(galleryIndex>=gallery.length)galleryIndex=gallery.length-1;
+      if(galleryPlaying)showGalleryItem(galleryIndex);
+      stopGalleryTimer();if(galleryPlaying&&gallery.length>1)galleryTimer=setInterval(()=>showGalleryItem(galleryIndex+1),30000);
+    }
+    renderGalleryList();toast('Imagem removida da galeria.');
+  }
+  $('fileInput').addEventListener('change',e=>{
+    const files=[...(e.target.files||[])];
+    let added=0;
+    for(const file of files){
+      const isGif=/\.gif$/i.test(file.name)||file.type==='image/gif';
+      if(!file.type.startsWith('image/')&&!isGif)continue;
+      if(gallery.some(item=>item.name===file.name&&item.size===file.size))continue;
+      gallery.push({name:file.name,size:file.size,url:URL.createObjectURL(file)});
+      added++;
+    }
+    renderGalleryList();e.target.value='';
+    if(added)toast(`${added} ${added===1?'imagem adicionada':'imagens adicionadas'} à galeria.`);
+    else if(files.length)toast('Nenhuma imagem nova compatível foi adicionada.');
+    if(gallery.length===1&&!galleryPlaying)startGallery();
+  });
+  $('startGallery').addEventListener('click',startGallery);
+  $('clearWallpaper').addEventListener('click',()=>{
+    stopGalleryTimer();galleryPlaying=false;
+    gallery.forEach(item=>URL.revokeObjectURL(item.url));gallery.length=0;galleryIndex=0;
+    wallpaper.replaceChildren();renderGalleryList();$('startGallery').textContent='Iniciar apresentação';
+    toast('Galeria limpa; fundo original restaurado.');
+  });
+  const presetBackgrounds={
+    ocean:'radial-gradient(ellipse at 65% 75%,#075b84 0%,transparent 45%),linear-gradient(145deg,#020712,#001d36)',
+    aurora:'radial-gradient(ellipse at 20% 80%,#1f7c73 0%,transparent 48%),radial-gradient(ellipse at 75% 55%,#553a82 0%,transparent 45%),#071019',
+    amber:'radial-gradient(ellipse at 55% 80%,#8d4b13 0%,transparent 48%),linear-gradient(150deg,#090706,#251305)'
+  };
+  document.querySelectorAll('[data-preset]').forEach(btn=>btn.addEventListener('click',()=>{
+    stopGalleryTimer();galleryPlaying=false;wallpaper.replaceChildren();
+    wallpaper.style.background=presetBackgrounds[btn.dataset.preset];toast('Fundo de ambiente aplicado.');
+  }));
+  // Wake lock is best effort and only works in supported secure/visible contexts.
+  let wakeLock=null;
+  async function requestWakeLock(){try{if('wakeLock'in navigator)wakeLock=await navigator.wakeLock.request('screen')}catch{}}
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')requestWakeLock()});
+  updateClock();setInterval(updateClock,250);requestWakeLock();
+})();
+</script>
+</body>
+</html>
